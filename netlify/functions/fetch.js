@@ -34,10 +34,11 @@ exports.handler = async function (event, context) {
     dsApi.addDefaultHeader('Authorization', 'Bearer ' + accessToken);
 
     const envelopesApi = new docusign.EnvelopesApi(dsApi);
-    const response = await envelopesApi.listStatusChanges(accountId, {
-      fromDate: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30).toISOString(), // past 30 days
-    });
-
+ const response = await envelopesApi.listStatusChanges(accountId, {
+  count: 1000, // Or remove it to use default (up to 100)
+  include: 'recipients', // Optional: preload recipients
+  // You can also add `status: 'any'` to ensure all are fetched
+});
     return {
       statusCode: 200,
       headers: {

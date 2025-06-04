@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Envelope Recipients</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Bootstrap CSS for DataTables -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <!-- DataTables CSS -->
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" />
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- jQuery & DataTables -->
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+</head>
+<body class="bg-gray-100 font-sans text-gray-800 px-6 py-10">
+
+  <!-- Page Title -->
+  <h1 class="text-4xl font-bold text-center mb-10 text-indigo-700">👥 Envelope Recipients</h1>
+
+  <!-- Skeleton Placeholder -->
+  <div id="skeleton" class="animate-pulse space-y-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div class="h-56 bg-gray-200 rounded-xl"></div>
+      <div class="h-56 bg-gray-200 rounded-xl"></div>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+      <div class="h-64 bg-gray-200 rounded-xl"></div>
+      <div class="h-64 bg-gray-200 rounded-xl"></div>
+    </div>
+  </div>
+
+  <!-- Dashboard -->
+<!-- Dashboard -->
+<div id="dashboard" class="hidden space-y-12">
+
+  <!-- Combined Charts & Summary -->
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <!-- Pie Chart -->
+    <div class="bg-white rounded-2xl shadow-lg p-6">
+      <canvas id="statusPieChart"></canvas>
+    </div>
+
+    <!-- Bar Chart -->
+    <div class="bg-white rounded-2xl shadow-lg p-6">
+      <canvas id="statusBarChart"></canvas>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="bg-white p-6 rounded-2xl shadow-lg">
+      <h2 class="text-xl font-semibold text-center mb-4 text-gray-700">📊 Summary</h2>
+      <div id="statusGrid" class="grid grid-cols-2 gap-4 text-center"></div>
+    </div>
+  </div>
+
+  <!-- Data Table -->
+  <div class="bg-white p-6 rounded-2xl shadow-lg">
+    <h2 class="text-2xl font-semibold mb-4 text-gray-700 text-center">📋 Recipients List</h2>
+    <div class="overflow-x-auto">
+      <table id="recipients-table" class="table table-striped table-bordered w-full font-[Arial] border border-gray-300">
+        <thead class="bg-indigo-100 text-indigo-700">
+          <tr>
+            <th class="border border-gray-300">Name</th>
+            <th class="border border-gray-300">Email</th>
+            <th class="border border-gray-300">Role</th>
+            <th class="border border-gray-300">Status</th>
+            <th class="border border-gray-300">Signed At</th>
+          </tr>
+        </thead>
+        <tbody id="recipient-table-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+
+  <!-- Script -->
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const envelopeId = urlParams.get('id');
+
+    if (!envelopeId) {
+      document.body.innerHTML = '<p class="text-red-600 text-center text-lg">Envelope ID is required.</p>';
+    } else {
+      document.getElementById('recipient-table-body').innerHTML = '';
+      document.getElementById('statusGrid').innerHTML = '';
+
+      fetch(`https://docusign-portal.netlify.app/.netlify/functions/getRecipients?id=${envelopeId}`)
+        .then(res => res.json())
+        .then(data => {
+          const recipients = data.signers || [];
+          const statusCounts = { 'created': 0, 'sent': 0, 'completed': 0 };
+
+          const tbody = document.getElementById('recipient-table-body');
+          if (recipients.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center">No recipients found.</td></tr>';
+          } else {
+            recipients.forEach(rec => {
+              const status = (rec.status || '—').toLowerCase();
+              statusCounts[status] = (statusCounts[status] || 0) + 1;
+
+              const row = `
+                <tr>
+                  <td>${rec.name}</td>
+                  <td>${rec.email}</td>
+                  <td>${rec.roleName || '-'}</td>
+                  <td>${rec.status}</td>
+                  <td>${rec.signedDateTime ? new Date(rec.signedDateTime).toLocaleString() : '-'}</td>
+                </tr>
+              `;
+              tbody.insertAdjacentHTML('beforeend', row);
+            });
+          }
+
+          // PIE CHART
+          const pieCtx = document.getElementById('statusPieChart').getContext('2d');
+          new Chart(pieCtx, {
+            type: 'pie',
+            data: {
+              labels: Object.keys(statusCounts),
+              datasets: [{
+                data: Object.values(statusCounts),
+                backgroundColor: ['#60A5FA', '#34D399', '#FBBF24']
+              }]
+            },
+            options: {
+              plugins: {
+                legend: { position: 'bottom' },
+                title: { display: true, text: 'Status Distribution' }
+              }
+            }
+          });
+
+          // BAR CHART
+          const barCtx = document.getElementById('statusBarChart').getContext('2d');
+          new Chart(barCtx, {
+            type: 'bar',
+            data: {
+              labels: Object.keys(statusCounts),
+              datasets: [{
+                label: 'Count',
+                data: Object.values(statusCounts),
+                backgroundColor: '#6366F1'
+              }]
+            },
+            options: {
+              plugins: {
+                title: { display: true, text: 'Status Counts by Type' }
+              },
+              scales: {
+                y: { beginAtZero: true }
+              }
+            }
+          });
+
+          // STATUS CARDS
+          const statusGrid = document.getElementById('statusGrid');
+          Object.entries(statusCounts).forEach(([status, count]) => {
+            const card = document.createElement('div');
+            card.className = "bg-indigo-100 p-5 rounded-lg shadow-md text-indigo-700 font-medium";
+            card.innerHTML = `<div class="text-sm capitalize mb-1">${status}</div><div class="text-3xl font-bold">${count}</div>`;
+            statusGrid.appendChild(card);
+          });
+
+          // Show dashboard
+          document.getElementById('skeleton').style.display = 'none';
+          document.getElementById('dashboard').classList.remove('hidden');
+
+          // Init DataTables
+          $(document).ready(function () {
+            $('#recipients-table').DataTable();
+          });
+        })
+        .catch(err => {
+          document.body.innerHTML += `<p class="text-red-600 text-center mt-6">Error loading data: ${err.message}</p>`;
+        });
+    }
+  </script>
+</body>
+</html>

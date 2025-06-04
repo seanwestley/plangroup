@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>DocuSign User Info</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      background: #f4f4f4;
+      padding: 2rem;
+    }
+    .info {
+      background: white;
+      padding: 1.5rem;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      max-width: 600px;
+      margin: auto;
+    }
+    h2 {
+      text-align: center;
+      margin-bottom: 1rem;
+    }
+    p {
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+  <div class="info">
+    <h2>👤 DocuSign User & Account Info</h2>
+    <div id="output">Loading...</div>
+  </div>
+
+  <script>
+    fetch('https://docusign-portal.netlify.app/.netlify/functions/getUserInfo')
+      .then(res => res.json())
+      .then(data => {
+        const acc = data.accounts[0];
+        document.getElementById('output').innerHTML = `
+          <p><strong>Name:</strong> ${data.name}</p>
+          <p><strong>Email:</strong> ${data.email}</p>
+          <p><strong>User ID:</strong> ${data.sub}</p>
+          <p><strong>Account Name:</strong> ${acc.accountName}</p>
+          <p><strong>Account ID:</strong> ${acc.accountId}</p>
+          <p><strong>Base URI:</strong> ${acc.baseUri}</p>
+        `;
+      })
+      .catch(err => {
+        document.getElementById('output').innerHTML = `<p style="color:red;">Error: ${err.message}</p>`;
+      });
+  </script>
+</body>
+</html>

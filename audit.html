@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Audit Log - Envelope</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+     body {
+      font-family: Arial, sans-serif;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 text-gray-800 p-6">
+
+  <!-- Page Title -->
+  <div class="text-center mb-10">
+    <h1 class="text-4xl font-bold text-indigo-700">Audit Log Summary - Envelope</h1>
+    <p class="text-gray-500 mt-2 text-lg">Track every envelope action here</p>
+  </div>
+
+  <!-- Charts & Summary Grid -->
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+    <div class="bg-white rounded-lg shadow-md p-4">
+      <canvas id="lineChart"></canvas>
+    </div>
+    <div class="bg-white rounded-lg shadow-md p-4">
+      <canvas id="barChart"></canvas>
+    </div>
+    <div class="bg-white rounded-lg shadow-md p-6 flex flex-col justify-center">
+      <h2 class="text-xl font-semibold mb-4 text-center">Event Summary</h2>
+      <div class="space-y-2 text-center">
+        <p id="totalCount" class="text-gray-700 text-base">Total Events: 0</p>
+        <p id="totalSent" class="text-gray-700 text-base">Sent Events: 0</p>
+        <p id="totalVoided" class="text-gray-700 text-base">Voided Events: 0</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Audit Event Table -->
+  <div class="bg-white p-6 rounded-lg shadow-md">
+    <h3 class="text-2xl font-semibold mb-4">Event Details</h3>
+    <div class="overflow-x-auto">
+      <table id="auditTable" class="min-w-full table-auto border border-gray-200 text-sm">
+        <thead class="bg-indigo-100 text-indigo-800 font-semibold">
+          <tr>
+            <th class="px-4 py-2 border">Timestamp</th>
+            <th class="px-4 py-2 border">Action</th>
+            <th class="px-4 py-2 border">User</th>
+            <th class="px-4 py-2 border">Status</th>
+            <th class="px-4 py-2 border">Message</th>
+          </tr>
+        </thead>
+        <tbody class="bg-white text-gray-800"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Script -->
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const envelopeId = urlParams.get('id');
+
+      fetch(`https://docusign-portal.netlify.app/.netlify/functions/audit?id=${envelopeId}`)
+        .then(response => response.json())
+        .then(data => {
+          const events = data;
+          const labels = [];
+          const eventActions = [];
+          const eventCounts = { sent: 0, voided: 0 };
+          const eventDetails = [];
+
+          events.forEach(event => {
+            const logTime = new Date(event.eventFields.find(f => f.name === 'logTime').value);
+            const action = event.eventFields.find(f => f.name === 'Action').value;
+            const user = event.eventFields.find(f => f.name === 'UserName').value;
+            const status = event.eventFields.find(f => f.name === 'EnvelopeStatus').value;
+            const message = event.eventFields.find(f => f.name === 'Message').value;
+
+            labels.push(logTime.toLocaleString());
+            eventActions.push(action);
+            if (status === 'sent') eventCounts.sent++;
+            if (status === 'voided') eventCounts.voided++;
+            eventDetails.push({ logTime, action, user, status, message });
+          });
+
+          document.getElementById('totalCount').innerText = `Total Events: ${events.length}`;
+          document.getElementById('totalSent').innerText = `Sent Events: ${eventCounts.sent}`;
+          document.getElementById('totalVoided').innerText = `Voided Events: ${eventCounts.voided}`;
+
+          const tableBody = document.querySelector('#auditTable tbody');
+          eventDetails.forEach(detail => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+              <td class="px-4 py-2 border">${detail.logTime}</td>
+              <td class="px-4 py-2 border">${detail.action}</td>
+              <td class="px-4 py-2 border">${detail.user}</td>
+              <td class="px-4 py-2 border">${detail.status}</td>
+              <td class="px-4 py-2 border">${detail.message}</td>
+            `;
+            tableBody.appendChild(row);
+          });
+
+          // Shared Color Scheme
+          const chartColors = ['#60A5FA', '#34D399', '#FBBF24', '#F87171', '#A78BFA', '#F472B6'];
+
+          // Line Chart
+          const lineChartCtx = document.getElementById('lineChart').getContext('2d');
+          new Chart(lineChartCtx, {
+            type: 'line',
+            data: {
+              labels,
+              datasets: [{
+                label: 'Event Time Trends',
+                data: new Array(labels.length).fill(1),
+                borderColor: chartColors[0],
+                backgroundColor: chartColors[0] + '33',
+                fill: false,
+              }],
+            },
+            options: {
+              plugins: {
+                title: { display: true, text: 'Event Time Trends' }
+              },
+              scales: {
+                x: { title: { display: true, text: 'Timestamp' } },
+                y: { title: { display: true, text: 'Events' }, beginAtZero: true }
+              }
+            }
+          });
+
+          // Bar Chart
+          const actionCount = eventActions.reduce((acc, act) => {
+            acc[act] = (acc[act] || 0) + 1;
+            return acc;
+          }, {});
+          const barChartCtx = document.getElementById('barChart').getContext('2d');
+          new Chart(barChartCtx, {
+            type: 'bar',
+            data: {
+              labels: Object.keys(actionCount),
+              datasets: [{
+                label: 'Action Counts',
+                data: Object.values(actionCount),
+                backgroundColor: chartColors[1],
+              }]
+            },
+            options: {
+              plugins: {
+                title: { display: true, text: 'Actions Summary' }
+              },
+              scales: {
+                y: { beginAtZero: true }
+              }
+            }
+          });
+
+        })
+        .catch(error => {
+          document.body.innerHTML += `<p class="text-red-600 mt-4">Error loading audit log: ${error.message}</p>`;
+        });
+    });
+  </script>
+
+</body>
+</html>

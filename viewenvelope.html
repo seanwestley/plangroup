@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>View Envelope</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 font-sans text-gray-800">
+
+  <div class="container mx-auto max-w-3xl py-10 px-6">
+    <h1 class="text-4xl font-bold text-center mb-8 text-gray-700">📄 Envelope Details</h1>
+
+    <div id="envelopeDetails" class="bg-white p-6 rounded-2xl shadow-xl transition-all duration-300 ease-in-out">
+      <p class="text-center text-gray-500">Loading...</p>
+    </div>
+  </div>
+
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const envelopeId = urlParams.get('id');
+
+    if (!envelopeId) {
+      document.getElementById('envelopeDetails').innerHTML = '<p class="text-red-600 text-center text-lg">Envelope ID is required.</p>';
+    } else {
+      fetch(`https://docusign-portal.netlify.app/.netlify/functions/viewEnvelope?id=${envelopeId}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.envelopeId) {
+            let statusClass = 'bg-yellow-400';
+            if (data.status === 'Completed') statusClass = 'bg-green-500';
+            else if (data.status === 'Sent') statusClass = 'bg-blue-500';
+            else if (data.status === 'Error') statusClass = 'bg-red-500';
+
+            const envelopeDetails = `
+              <div class="space-y-5">
+                <div>
+                  <h2 class="text-lg font-semibold text-gray-600">Envelope ID:</h2>
+                  <p class="text-gray-900">${data.envelopeId}</p>
+                </div>
+
+                <div>
+                  <h2 class="text-lg font-semibold text-gray-600">Subject:</h2>
+                  <p class="text-gray-900">${data.emailSubject || '—'}</p>
+                </div>
+
+                <div>
+                  <h2 class="text-lg font-semibold text-gray-600">Status:</h2>
+                  <span class="inline-block text-white text-sm px-4 py-1 rounded-full ${statusClass} shadow-sm">${data.status || '—'}</span>
+                </div>
+
+                <div>
+                  <h2 class="text-lg font-semibold text-gray-600">Sender:</h2>
+                  <p class="text-gray-900">${data.sender?.userName || '—'}</p>
+                </div>
+
+                <div>
+                  <h2 class="text-lg font-semibold text-gray-600">Created:</h2>
+                  <p class="text-gray-900">${new Date(data.createdDateTime).toLocaleString()}</p>
+                </div>
+
+                <div>
+                  <h2 class="text-lg font-semibold text-gray-600">Last Status Change:</h2>
+                  <p class="text-gray-900">${new Date(data.statusChangedDateTime).toLocaleString() || '—'}</p>
+                </div>
+
+                <div class="flex justify-center gap-4 mt-6">
+                  <a href="/audit.html?id=${data.envelopeId}" class="inline-block px-5 py-2 bg-blue-600 text-white rounded-lg shadow hover:bg-blue-700 transition-all">🔍 View Audit Logs</a>
+                  <a href="/recipients.html?id=${data.envelopeId}" class="inline-block px-5 py-2 bg-emerald-600 text-white rounded-lg shadow hover:bg-emerald-700 transition-all">👥 View Recipients</a>
+                </div>
+              </div>
+            `;
+
+            document.getElementById('envelopeDetails').innerHTML = envelopeDetails;
+          } else {
+            document.getElementById('envelopeDetails').innerHTML = '<p class="text-red-600 text-center text-lg">Envelope not found.</p>';
+          }
+        })
+        .catch(err => {
+          document.getElementById('envelopeDetails').innerHTML = `<p class="text-red-600 text-center text-lg">Failed to load envelope: ${err.message}</p>`;
+        });
+    }
+  </script>
+</body>
+</html>
